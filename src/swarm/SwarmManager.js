@@ -9,7 +9,6 @@ const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
 
-// Generate a safe per-user lockfile path
 let _sysUser = 'user';
 try { _sysUser = os.userInfo().username || 'user'; } catch(e) {}
 const _userHash = crypto.createHash('md5').update(_sysUser).digest('hex').substring(0, 8);
@@ -72,7 +71,6 @@ class SwarmManager {
         if (!this.isRunning) return;
 
         try {
-            // Check cross-process pause lock
             if (this._isCrossProcessPaused()) {
                 this.isPaused = true;
                 this._scheduleNextLoop(4000);
@@ -89,17 +87,16 @@ class SwarmManager {
             const timeSinceActivity = Date.now() - this.getLastUserActivity();
 
             if (timeSinceActivity < idleThresholdMs) {
-                // User is actively working, postpone navigation
                 this._scheduleNextLoop(2000);
                 return;
             }
 
-            // Scan the fleet across Agent Manager and open windows
+            // Scan fleet
             const fleet = await this.discoverFleet();
             this._knownFleet = fleet;
             if (this.onFleetUpdate) this.onFleetUpdate(fleet);
 
-            // Find conversations requiring action (status: 'requires_input', 'pending', 'error')
+            // Find conversations requiring action
             const needsAction = fleet.filter(agent => agent.requiresAction && !agent.isActive);
 
             if (needsAction.length > 0) {
@@ -108,8 +105,7 @@ class SwarmManager {
 
                 const navigated = await this.navigateToAgent(targetAgent);
                 if (navigated) {
-                    // Give DOM a moment to mount, then force immediate acceptance
-                    await this._sleep(1600);
+                    await this._sleep(1500);
                     const acceptResult = await this._triggerImmediateAccept(targetAgent);
                     
                     if (acceptResult) {
@@ -124,11 +120,21 @@ class SwarmManager {
                         }
                     }
                 }
+            } else {
+                // Also check active agent window for any pending permission cards
+                for (const agent of fleet) {
+                    if (agent.isActive && agent.wsUrl) {
+                        const directAccept = await this._triggerImmediateAccept(agent);
+                        if (directAccept) {
+                            this.log(`[Swarm] Direct auto-approved in "${agent.title}": ${directAccept}`);
+                        }
+                    }
+                }
             }
         } catch (e) {
             this.log(`[Swarm Loop Error]: ${e.message}`);
         } finally {
-            this._scheduleNextLoop(3000);
+            this._scheduleNextLoop(2500);
         }
     }
 
@@ -146,8 +152,6 @@ class SwarmManager {
                 const sidebarScrape = await this.cm.eval(sidebarUrl, `
                     (() => {
                         var agents = [];
-                        
-                        // Workspace cards and conversation items
                         var cards = document.querySelectorAll('[data-workspace-card="true"]');
                         if (cards.length > 0) {
                             var globalIdx = 0;
@@ -163,8 +167,8 @@ class SwarmManager {
                                     var title = (item.textContent || '').trim();
                                     var itemTextLower = title.toLowerCase();
                                     
-                                    // Check status badges
                                     var hasRequiresInput = itemTextLower.indexOf('requires input') !== -1 ||
+                                        itemTextLower.indexOf('allow') !== -1 ||
                                         !!item.querySelector('[aria-label*="requires input"]') ||
                                         !!item.querySelector('[class*="badge-warning"]');
                                     
@@ -187,13 +191,12 @@ class SwarmManager {
                                 }
                             }
                         } else {
-                            // Fallback for flat convo-pill lists
                             var pills = document.querySelectorAll('[data-testid*="convo-pill"], [class*="convo-pill"], [class*="conversation-item"]');
                             for (var p = 0; p < pills.length; p++) {
                                 var pill = pills[p];
                                 var pillTitle = (pill.textContent || '').trim();
                                 var pLower = pillTitle.toLowerCase();
-                                var reqAction = pLower.indexOf('requires input') !== -1 || pLower.indexOf('action') !== -1;
+                                var reqAction = pLower.indexOf('requires input') !== -1 || pLower.indexOf('allow') !== -1 || pLower.indexOf('action') !== -1;
                                 var pRunning = pLower.indexOf('running') !== -1;
                                 var pActive = pill.classList.contains('active') || pill.getAttribute('aria-selected') === 'true';
 
@@ -219,26 +222,55 @@ class SwarmManager {
                         seenTitles.add(a.title);
                     }
                 }
-            } catch (e) {
-                // Ignore sidebar scrape failure
-            }
+            } catch (e) {}
         }
 
-        // 2. Add individual editor / chat tabs from active CDP sessions
+        // 2. Discover agents from open page/workbench sessions
         for (const [targetId, session] of this.cm.sessions) {
-            if (session.type === 'page' && !seenTitles.has(session.title)) {
-                fleet.push({
-                    index: fleet.length,
-                    title: session.title,
-                    workspace: 'Individual Window',
-                    requiresAction: false,
-                    isRunning: true,
-                    isActive: true,
-                    source: 'window',
-                    wsUrl: session.wsUrl,
-                    targetId
-                });
-                seenTitles.add(session.title);
+            if (session.type === 'page') {
+                let displayTitle = session.title;
+                let requiresAction = false;
+                let isRunning = true;
+
+                // Query DOM of the page to extract active agent heading & status
+                try {
+                    const probe = await this.cm.eval(session.wsUrl, `
+                        (() => {
+                            var heading = document.querySelector('h1, h2, [class*="agent-title"], [class*="conversation-title"], header [class*="title"], .flex.min-w-0.items-center');
+                            var title = '';
+                            if (heading) {
+                                title = (heading.textContent || '').trim();
+                            }
+                            var hasPendingCard = !!document.querySelector('button[type="submit"], input[type="submit"]') ||
+                                (document.body && (document.body.textContent || '').indexOf('Allow reading this URL') !== -1);
+
+                            return JSON.stringify({ title: title, hasPendingCard: hasPendingCard });
+                        })()
+                    `, 2000);
+
+                    const res = JSON.parse(probe?.result?.value || '{}');
+                    if (res.title && res.title.length > 3 && res.title.length < 90) {
+                        displayTitle = res.title;
+                    }
+                    if (res.hasPendingCard) {
+                        requiresAction = true;
+                    }
+                } catch(e) {}
+
+                if (!seenTitles.has(displayTitle)) {
+                    fleet.push({
+                        index: fleet.length,
+                        title: displayTitle,
+                        workspace: 'Workbench Window',
+                        requiresAction: requiresAction,
+                        isRunning: isRunning,
+                        isActive: true,
+                        source: 'window',
+                        wsUrl: session.wsUrl,
+                        targetId
+                    });
+                    seenTitles.add(displayTitle);
+                }
             }
         }
 
@@ -256,8 +288,6 @@ class SwarmManager {
             const navResult = await this.cm.eval(sidebarUrl, `
                 (() => {
                     var targetIdx = ${agent.index};
-                    
-                    // Strategy 1: Expand workspace card if collapsed and click item
                     var cards = document.querySelectorAll('[data-workspace-card="true"]');
                     var count = 0;
                     for (var c = 0; c < cards.length; c++) {
@@ -279,7 +309,6 @@ class SwarmManager {
                         }
                     }
 
-                    // Strategy 2: Direct pill click
                     var pills = document.querySelectorAll('[data-testid*="convo-pill"], [class*="convo-pill"], [class*="conversation-item"]');
                     if (pills.length > targetIdx) {
                         pills[targetIdx].scrollIntoView({ block: 'center' });
@@ -303,15 +332,21 @@ class SwarmManager {
     }
 
     /**
-     * Forces an immediate DOM evaluation in the mounted agent view to accept pending prompts.
+     * Triggers an immediate acceptance on either sidebar or window target.
      */
     async _triggerImmediateAccept(agent) {
-        const sidebarUrl = this.cm.sidebarWsUrl;
-        if (!sidebarUrl) return null;
+        const wsUrl = agent?.wsUrl || this.cm.sidebarWsUrl;
+        if (!wsUrl) return null;
 
         try {
-            const res = await this.cm.eval(sidebarUrl, `
+            const res = await this.cm.eval(wsUrl, `
                 (() => {
+                    if (typeof window.__AA_CLEANUP === 'function') {
+                        // In-page observer is active, trigger scan
+                        return window.__AA_SCAN_QUEUED ? 'queued' : 'active';
+                    }
+
+                    // Direct fallback scan if observer not yet attached
                     var allTargets = [
                         'run', 'accept', 'accept all', 'accept step',
                         'always allow', 'allow this conversation', 'allow',
