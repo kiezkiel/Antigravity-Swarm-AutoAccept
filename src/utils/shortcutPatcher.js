@@ -59,7 +59,8 @@ async function patchWindowsShortcut(port = 9333) {
             }
         `;
 
-        exec(`powershell -NoProfile -ExecutionPolicy Bypass -Command "${psScript.replace(/\r?\n/g, ' ')}"`, (err, stdout, stderr) => {
+        const encoded = Buffer.from(psScript, 'utf16le').toString('base64');
+        exec(`powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encoded}`, (err, stdout, stderr) => {
             if (err) {
                 resolve({ success: false, message: `Failed to patch shortcut: ${stderr || err.message}` });
                 return;
