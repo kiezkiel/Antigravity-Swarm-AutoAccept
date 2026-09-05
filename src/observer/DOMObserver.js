@@ -1,7 +1,8 @@
 /**
  * Antigravity Swarm AutoAccept — In-Page DOM Observer
  * High-performance, event-driven observer injected into Antigravity agent webviews.
- * Handles Run, Accept, Always Allow, Retry, and interactive tool permission cards (e.g. "Allow reading this URL?").
+ * Handles Run, Accept, Always Allow, Retry, and interactive tool permission cards.
+ * Excludes titlebar menus, editor code lines, and activity bar buttons.
  */
 
 function buildDOMObserverScript(options = {}) {
@@ -33,7 +34,6 @@ function buildDOMObserverScript(options = {}) {
     return `
 (function() {
     if (window.__AA_OBSERVER_ACTIVE) {
-        // Re-run immediate scan on re-injection
         try { scanAndAccept(); } catch(e) {}
         return 'already-active';
     }
@@ -53,7 +53,10 @@ function buildDOMObserverScript(options = {}) {
         'continue': true
     };
 
-    var LIST_SELECTORS = '[role="tree"], [role="treeitem"], [role="listbox"], [role="option"], .monaco-list, .conversation-list, .chat-list, .sidebar-list, [data-testid*="convo"], [data-testid*="trajectory"], [class*="conversation-list"], [class*="chat-history"], nav, [role="navigation"], [role="menu"]';
+    // Containers that must NEVER be clicked (e.g. titlebar "Run" menu item, code editor, activity bar)
+    var EXCLUDED_SELECTORS = '#workbench\\\\.parts\\\\.titlebar, .part.titlebar, header, [role="menubar"], [role="menu"], .menubar-menu-button, .menubar-menu-title, #workbench\\\\.parts\\\\.activitybar, .part.activitybar, #workbench\\\\.parts\\\\.statusbar, .part.statusbar, .tabs-container, .tab, .editor-group-header, .monaco-editor, .view-lines, .explorer-folders-view, nav';
+
+    var LIST_SELECTORS = '[role="tree"], [role="treeitem"], [role="listbox"], [role="option"], .monaco-list, .conversation-list, .chat-list, .sidebar-list, [data-testid*="convo"], [data-testid*="trajectory"], [class*="conversation-list"], [class*="chat-history"], nav, [role="navigation"]';
 
     window.__AA_PAUSED = false;
     window.__AA_SWARM_PAUSED = false;
@@ -88,6 +91,14 @@ function buildDOMObserverScript(options = {}) {
         return parts.join('/');
     }
 
+    function isExcludedUIElement(el) {
+        if (!el || !el.closest) return false;
+        try {
+            if (el.closest(EXCLUDED_SELECTORS)) return true;
+        } catch(e) {}
+        return false;
+    }
+
     function safeClick(el) {
         if (!el) return;
         try {
@@ -107,18 +118,15 @@ function buildDOMObserverScript(options = {}) {
         }
     }
 
-    /**
-     * Specialized handler for multi-choice permission prompts (e.g. "Allow reading this URL?")
-     * Selects "Yes, and always allow" (or "Yes, allow this time") and clicks "Submit".
-     */
     function handlePermissionCards() {
         var submitButtons = [];
         var allButtons = document.querySelectorAll('button, [role="button"], input[type="submit"]');
         
         for (var i = 0; i < allButtons.length; i++) {
             var b = allButtons[i];
+            if (isExcludedUIElement(b)) continue;
+
             var rawText = (b.textContent || b.value || '').trim().toLowerCase();
-            // Clean trailing return arrow or whitespace
             var clean = rawText.replace(/[\\u21B5\\u23CE\\u21A9\\u2190-\\u21FF\\s]+$/g, '');
             if (clean === 'submit' || clean.startsWith('submit')) {
                 submitButtons.push(b);
@@ -129,7 +137,6 @@ function buildDOMObserverScript(options = {}) {
             var submitBtn = submitButtons[s];
             if (submitBtn.disabled || submitBtn.getAttribute('aria-disabled') === 'true') continue;
 
-            // Find parent permission card container
             var container = submitBtn.parentElement;
             for (var up = 0; up < 8 && container && container !== document.body; up++) {
                 var cText = (container.textContent || '').toLowerCase();
@@ -154,7 +161,6 @@ function buildDOMObserverScript(options = {}) {
             var cdKey = _domPath(submitBtn) + ':permission_card';
             if (clickCooldowns[cdKey] && (Date.now() - clickCooldowns[cdKey] < 4000)) continue;
 
-            // Find options inside this card
             var candidateOptions = container.querySelectorAll('button, [role="radio"], [role="option"], [role="button"], label, div.cursor-pointer, div[class*="tabular-nums"], [class*="cursor-pointer"]');
             var bestOption = null;
             var bestPriority = 999;
@@ -178,7 +184,6 @@ function buildDOMObserverScript(options = {}) {
                 }
             }
 
-            // Click the chosen option
             if (bestOption) {
                 _log('Selecting permission option:', (bestOption.textContent || '').trim().substring(0, 50));
                 safeClick(bestOption);
@@ -226,6 +231,9 @@ function buildDOMObserverScript(options = {}) {
     function getClosestClickable(node) {
         var el = node;
         while (el && el !== document.body) {
+            // Abort if we hit excluded UI areas (e.g. titlebar, menubar, editor)
+            if (isExcludedUIElement(el)) return null;
+
             if (el !== node && el.matches && (function() {
                 try { return el.matches(LIST_SELECTORS); } catch(e) { return false; }
             })()) {
@@ -234,6 +242,12 @@ function buildDOMObserverScript(options = {}) {
 
             var tag = (el.tagName || '').toLowerCase();
             var role = el.getAttribute ? el.getAttribute('role') : null;
+            
+            // Reject menubar items
+            if (role === 'menuitem' || role === 'menubar' || (el.className && typeof el.className === 'string' && el.className.indexOf('menubar') !== -1)) {
+                return null;
+            }
+
             var isClickable = tag === 'button' || tag === 'a' ||
                 role === 'button' || role === 'link' ||
                 (el.classList && el.classList.contains('cursor-pointer')) ||
@@ -315,6 +329,9 @@ function buildDOMObserverScript(options = {}) {
         var best = null;
 
         while ((node = walker.nextNode())) {
+            // Skip excluded UI containers
+            if (isExcludedUIElement(node)) continue;
+
             if (node.shadowRoot) {
                 var shadowBest = findMatchingButton(node.shadowRoot, targets);
                 if (shadowBest && (best === null || shadowBest.priority < best.priority)) {
@@ -326,7 +343,7 @@ function buildDOMObserverScript(options = {}) {
             var testId = (node.getAttribute('data-testid') || node.getAttribute('data-action') || '').toLowerCase();
             if (testId.includes('alwaysallow') || testId.includes('always-allow')) {
                 var clickableA = getClosestClickable(node);
-                if (clickableA) {
+                if (clickableA && !isExcludedUIElement(clickableA)) {
                     return { node: clickableA, matchedText: 'always allow', priority: 0 };
                 }
             }
@@ -334,7 +351,6 @@ function buildDOMObserverScript(options = {}) {
             var textContent = (node.textContent || '').trim().toLowerCase();
             if (textContent.length === 0 || textContent.length > 70) continue;
 
-            // Clean leading numbers (e.g. "1  Yes, allow this time") and trailing symbols
             var cleanContent = textContent.replace(/^[0-9\\s•\\-\\.\\(\\)]+/, '').replace(/[\\u21B5\\u23CE\\u21A9\\u2190-\\u21FF\\s]+$/g, '').trim();
 
             for (var t = 0; t < targets.length; t++) {
@@ -358,7 +374,7 @@ function buildDOMObserverScript(options = {}) {
                 if (!isMatch) continue;
 
                 var clickable = getClosestClickable(node);
-                if (!clickable) continue;
+                if (!clickable || isExcludedUIElement(clickable)) continue;
 
                 var tag = (clickable.tagName || '').toLowerCase();
                 var isSemantic = (tag === 'button' || tag === 'a');
@@ -396,11 +412,9 @@ function buildDOMObserverScript(options = {}) {
     function scanAndAccept() {
         if (window.__AA_PAUSED || window.__AA_SWARM_PAUSED) return null;
 
-        // 1. Check for interactive permission cards first (e.g. "Allow reading this URL?")
         var permResult = handlePermissionCards();
         if (permResult) return permResult;
 
-        // 2. Scan for standard action buttons
         var allTargets = ACTION_TEXTS.concat(EXPAND_TEXTS);
         var match = findMatchingButton(document.body, allTargets);
         if (!match) return null;
@@ -408,7 +422,6 @@ function buildDOMObserverScript(options = {}) {
         var btn = match.node;
         var text = match.matchedText;
 
-        // Security check for commands
         if (HAS_FILTERS && !match.isExpand) {
             var cmd = extractCommand(btn);
             if (cmd && !isPermitted(cmd)) {
@@ -421,7 +434,6 @@ function buildDOMObserverScript(options = {}) {
             }
         }
 
-        // Circuit breaker for Retry/Continue
         if (text === 'retry' || text === 'continue') {
             var now = Date.now();
             window.__AA_RECOVERY_TS = window.__AA_RECOVERY_TS.filter(function(ts) { return now - ts < 60000; });
@@ -467,7 +479,6 @@ function buildDOMObserverScript(options = {}) {
         attributeFilter: ['class', 'style', 'hidden', 'aria-expanded', 'data-state']
     });
 
-    // 1.5s fallback polling interval
     var interval = setInterval(function() {
         if (window.__AA_PAUSED || window.__AA_SWARM_PAUSED) return;
         try { scanAndAccept(); } catch(e) {}
@@ -479,7 +490,6 @@ function buildDOMObserverScript(options = {}) {
         window.__AA_OBSERVER_ACTIVE = false;
     };
 
-    // Initial scan
     try { scanAndAccept(); } catch(e) {}
 
     return 'observer-installed';
