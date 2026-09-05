@@ -1,0 +1,11 @@
+node_modules/
+dist/
+out/
+*.vsix
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+.vscode-test/
+aa-swarm-*.json

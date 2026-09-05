@@ -1,0 +1,160 @@
+{
+  "name": "antigravity-swarm-autoaccept",
+  "displayName": "Antigravity Swarm AutoAccept",
+  "description": "Full-featured autonomous swarm auto-accept for Antigravity. Discovers agents across conversations and handles Run, Accept, and Allow prompts hands-free.",
+  "version": "1.0.0",
+  "publisher": "kiezkiel",
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "swarmAutoAccept.toggle",
+        "title": "Swarm AutoAccept: Toggle ON/OFF"
+      },
+      {
+        "command": "swarmAutoAccept.toggleSwarm",
+        "title": "Swarm AutoAccept: Toggle Swarm Multi-Agent Mode"
+      },
+      {
+        "command": "swarmAutoAccept.dashboard",
+        "title": "Swarm AutoAccept: Open Fleet Dashboard"
+      },
+      {
+        "command": "swarmAutoAccept.scanAgents",
+        "title": "Swarm AutoAccept: Rescan Agent Fleet"
+      },
+      {
+        "command": "swarmAutoAccept.patchShortcut",
+        "title": "Swarm AutoAccept: Auto-Patch Antigravity Shortcut"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "swarmAutoAccept.toggleSwarm",
+        "key": "ctrl+shift+s",
+        "when": "true"
+      }
+    ],
+    "configuration": {
+      "title": "Antigravity Swarm AutoAccept",
+      "properties": {
+        "swarmAutoAccept.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Enable or disable global auto-accept."
+        },
+        "swarmAutoAccept.swarmMode": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Enable autonomous multi-agent Swarm Mode across all Agent Manager conversations."
+        },
+        "swarmAutoAccept.cdpPort": {
+          "type": "number",
+          "default": 9333,
+          "scope": "machine",
+          "description": "Chrome DevTools Protocol debugging port for Antigravity (default: 9333)."
+        },
+        "swarmAutoAccept.pollInterval": {
+          "type": "number",
+          "default": 500,
+          "scope": "window",
+          "description": "Polling interval in milliseconds for DOM checks."
+        },
+        "swarmAutoAccept.swarmIdleSeconds": {
+          "type": "number",
+          "default": 10,
+          "minimum": 3,
+          "maximum": 60,
+          "scope": "window",
+          "description": "Seconds of user inactivity before Swarm Mode navigates to pending background agents."
+        },
+        "swarmAutoAccept.autoAcceptFileEdits": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Auto-accept proposed file changes and diff steps."
+        },
+        "swarmAutoAccept.autoRetryEnabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "window",
+          "description": "Auto-click Retry and Continue buttons on transient agent errors (protected by circuit breaker)."
+        },
+        "swarmAutoAccept.blockedCommands": {
+          "type": "array",
+          "default": [
+            "rm -rf /",
+            "rm -rf *",
+            "format",
+            "mkfs",
+            "drop database",
+            "drop table",
+            "git push --force",
+            "git push -f",
+            "git reset --hard"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "scope": "application",
+          "description": "Terminal command patterns to block from automatic execution."
+        },
+        "swarmAutoAccept.allowedCommands": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "application",
+          "description": "If non-empty, ONLY commands matching these patterns will be auto-accepted."
+        },
+        "swarmAutoAccept.customButtonTexts": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "application",
+          "description": "Extra button label texts to auto-click (for i18n or custom prompts)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "package": "npx -y @vscode/vsce package --no-git-tag-version"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kiezkiel/Antigravity-Swarm-AutoAccept.git"
+  },
+  "keywords": [
+    "antigravity",
+    "autoaccept",
+    "swarm",
+    "agents",
+    "cdp",
+    "automation",
+    "ai-agent"
+  ],
+  "author": "kiezkiel",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.2.1"
+  }
+}

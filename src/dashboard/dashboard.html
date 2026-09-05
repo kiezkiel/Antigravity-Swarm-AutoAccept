@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Swarm AutoAccept</title>
+    <style>
+        :root {
+            --bg-primary: #0a0d14;
+            --bg-card: rgba(22, 27, 34, 0.7);
+            --bg-card-hover: rgba(30, 36, 46, 0.85);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-accent: rgba(16, 185, 129, 0.3);
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --radius-lg: 14px;
+            --radius-md: 8px;
+            --radius-sm: 6px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            padding: 24px;
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* Header Bar */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+
+        .header-title-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            font-size: 32px;
+            filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.4));
+        }
+
+        .title {
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, #ffffff 0%, #a7f3d0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            border: none;
+            color: white;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #047857 0%, #059669 100%);
+            transform: translateY(-1px);
+        }
+
+        .btn-pause {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: rgba(245, 158, 11, 0.3);
+            color: #fbbf24;
+        }
+
+        .btn-pause:hover {
+            background: rgba(245, 158, 11, 0.25);
+        }
+
+        /* Metric Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 18px;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .card-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        .card-value {
+            font-size: 26px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+            display: inline-block;
+        }
+
+        .status-dot.paused {
+            background-color: var(--accent-amber);
+            box-shadow: 0 0 10px var(--accent-amber);
+        }
+
+        .status-dot.disconnected {
+            background-color: var(--accent-red);
+            box-shadow: 0 0 10px var(--accent-red);
+        }
+
+        /* Sections */
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* Fleet Table */
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 12px 16px;
+            color: var(--text-muted);
+            font-weight: 500;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge-pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .badge-running {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .badge-idle {
+            background: rgba(156, 163, 175, 0.12);
+            color: #9ca3af;
+        }
+
+        .badge-active {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        /* Safety Rules */
+        .rules-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .rules-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+            margin-bottom: 12px;
+        }
+
+        .tag {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #f87171;
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tag .remove-btn {
+            cursor: pointer;
+            opacity: 0.7;
+        }
+
+        .tag .remove-btn:hover {
+            opacity: 1;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 8px 12px;
+            color: var(--text-primary);
+            font-size: 13px;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--accent-green);
+        }
+
+        /* Activity Stream */
+        .activity-feed {
+            max-height: 240px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .activity-item {
+            padding: 10px 14px;
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: var(--radius-sm);
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid var(--accent-green);
+        }
+
+        .activity-item.swarm {
+            border-left-color: var(--accent-purple);
+        }
+
+        .activity-time {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <div class="header">
+        <div class="header-title-group">
+            <div class="logo-icon">🐝</div>
+            <div>
+                <h1 class="title">Antigravity Swarm AutoAccept</h1>
+                <p class="subtitle">Autonomous Multi-Agent Fleet Manager & Approval Automation</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <button id="rescanBtn">🔄 Rescan Fleet</button>
+            <button id="patchShortcutBtn">⚙️ Auto-Fix Shortcut</button>
+            <button id="toggleSwarmBtn" class="btn-primary">▶ Swarm Mode: Active</button>
+        </div>
+    </div>
+
+    <!-- Live Metrics -->
+    <div class="metrics-grid">
+        <div class="card">
+            <div class="card-label">Swarm Mode</div>
+            <div class="card-value">
+                <span id="swarmStatusDot" class="status-dot"></span>
+                <span id="swarmStatusText">ACTIVE</span>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-label">CDP Engine</div>
+            <div class="card-value">
+                <span id="cdpStatusDot" class="status-dot"></span>
+                <span id="cdpStatusText">Port 9333</span>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-label">Fleet Agents</div>
+            <div class="card-value">
+                <span id="fleetCountText">0</span>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-label">Auto-Approved Actions</div>
+            <div class="card-value">
+                <span id="approvedCountText" style="color: var(--accent-green);">0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Fleet Table -->
+    <div class="section-title">🤖 Active Agent Fleet (Manager + Windows)</div>
+    <div class="table-card">
+        <table>
+            <thead>
+                <tr>
+                    <th>Agent / Conversation</th>
+                    <th>Workspace</th>
+                    <th>Status</th>
+                    <th>Location</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="fleetTableBody">
+                <tr>
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                        Scanning for active Antigravity conversations...
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Safety Filter & Activity Grid -->
+    <div class="rules-container">
+        <!-- Safety Filters -->
+        <div class="card">
+            <div class="section-title">🛡️ Command Safety Filter</div>
+            <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 8px;">
+                Terminal commands matching these patterns will NEVER be automatically accepted.
+            </p>
+            <div class="tag-list" id="blockedTagList"></div>
+            <div class="input-group">
+                <input type="text" id="newBlockInput" placeholder="Add pattern (e.g. drop database)...">
+                <button id="addBlockBtn">+ Add Pattern</button>
+            </div>
+        </div>
+
+        <!-- Live Activity Stream -->
+        <div class="card">
+            <div class="section-title">⚡ Live Approval Audit</div>
+            <div class="activity-feed" id="activityFeed">
+                <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 20px;">
+                    Waiting for approval triggers...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const vscode = acquireVsCodeApi();
+        let currentState = { blockedCommands: [] };
+        let totalApprovals = 0;
+
+        // Elements
+        const swarmStatusDot = document.getElementById('swarmStatusDot');
+        const swarmStatusText = document.getElementById('swarmStatusText');
+        const cdpStatusDot = document.getElementById('cdpStatusDot');
+        const cdpStatusText = document.getElementById('cdpStatusText');
+        const fleetCountText = document.getElementById('fleetCountText');
+        const approvedCountText = document.getElementById('approvedCountText');
+        const fleetTableBody = document.getElementById('fleetTableBody');
+        const blockedTagList = document.getElementById('blockedTagList');
+        const newBlockInput = document.getElementById('newBlockInput');
+        const addBlockBtn = document.getElementById('addBlockBtn');
+        const toggleSwarmBtn = document.getElementById('toggleSwarmBtn');
+        const patchShortcutBtn = document.getElementById('patchShortcutBtn');
+        const rescanBtn = document.getElementById('rescanBtn');
+        const activityFeed = document.getElementById('activityFeed');
+
+        // Initialize
+        vscode.postMessage({ command: 'ready' });
+
+        // Event Handlers
+        toggleSwarmBtn.addEventListener('click', () => {
+            vscode.postMessage({ command: 'toggleSwarm' });
+        });
+
+        patchShortcutBtn.addEventListener('click', () => {
+            vscode.postMessage({ command: 'patchShortcut' });
+        });
+
+        rescanBtn.addEventListener('click', () => {
+            vscode.postMessage({ command: 'rescan' });
+        });
+
+        addBlockBtn.addEventListener('click', () => {
+            const val = (newBlockInput.value || '').trim();
+            if (val && !currentState.blockedCommands.includes(val)) {
+                const updated = [...currentState.blockedCommands, val];
+                vscode.postMessage({ command: 'updateBlockedCommands', commands: updated });
+                newBlockInput.value = '';
+            }
+        });
+
+        // Listen for messages from extension
+        window.addEventListener('message', (event) => {
+            const msg = event.data;
+            if (!msg) return;
+
+            if (msg.type === 'state') {
+                renderState(msg.data);
+            } else if (msg.type === 'activity') {
+                addActivity(msg.data);
+            }
+        });
+
+        function renderState(data) {
+            currentState = data;
+
+            // Swarm Status
+            if (data.swarmPaused) {
+                swarmStatusDot.className = 'status-dot paused';
+                swarmStatusText.textContent = 'PAUSED';
+                toggleSwarmBtn.textContent = '▶ Resume Swarm';
+                toggleSwarmBtn.className = 'btn-pause';
+            } else {
+                swarmStatusDot.className = 'status-dot';
+                swarmStatusText.textContent = 'ACTIVE';
+                toggleSwarmBtn.textContent = '⏸ Pause Swarm';
+                toggleSwarmBtn.className = 'btn-primary';
+            }
+
+            // CDP Status
+            if (data.cdpConnected) {
+                cdpStatusDot.className = 'status-dot';
+                cdpStatusText.textContent = `Port ${data.cdpPort}`;
+            } else {
+                cdpStatusDot.className = 'status-dot disconnected';
+                cdpStatusText.textContent = 'Not Connected';
+            }
+
+            // Fleet Count
+            const fleet = data.fleet || [];
+            fleetCountText.textContent = fleet.length;
+
+            // Render Fleet Table
+            if (fleet.length === 0) {
+                fleetTableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">
+                            No agents detected yet. Open Agent Manager or start a conversation in Antigravity.
+                        </td>
+                    </tr>
+                `;
+            } else {
+                fleetTableBody.innerHTML = fleet.map(agent => `
+                    <tr>
+                        <td style="font-weight: 500;">${escapeHtml(agent.title)}</td>
+                        <td style="color: var(--text-secondary);">${escapeHtml(agent.workspace || 'Default')}</td>
+                        <td>
+                            ${agent.requiresAction
+                                ? '<span class="badge badge-pending">Requires Input</span>'
+                                : (agent.isRunning
+                                    ? '<span class="badge badge-running">Running</span>'
+                                    : (agent.isActive
+                                        ? '<span class="badge badge-active">Active</span>'
+                                        : '<span class="badge badge-idle">Idle</span>'))}
+                        </td>
+                        <td style="color: var(--text-muted); font-size: 11px;">${agent.source === 'window' ? 'Window' : 'Sidebar'}</td>
+                        <td>
+                            <button onclick="navigateAgent(${agent.index})" style="padding: 4px 10px; font-size: 11px;">
+                                Focus
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            // Render Blocked Tags
+            blockedTagList.innerHTML = (data.blockedCommands || []).map(cmd => `
+                <div class="tag">
+                    <span>${escapeHtml(cmd)}</span>
+                    <span class="remove-btn" onclick="removeBlockedCommand('${escapeHtml(cmd)}')">&times;</span>
+                </div>
+            `).join('');
+
+            // Activities
+            if (Array.isArray(data.activities) && data.activities.length > 0) {
+                activityFeed.innerHTML = data.activities.map(a => `
+                    <div class="activity-item ${a.type === 'swarm_approval' ? 'swarm' : ''}">
+                        <div>
+                            <strong>${escapeHtml(a.action || 'Approved')}</strong> in <em>${escapeHtml(a.target || 'Agent')}</em>
+                        </div>
+                        <div class="activity-time">${new Date(a.timestamp || Date.now()).toLocaleTimeString()}</div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function addActivity(item) {
+            totalApprovals++;
+            approvedCountText.textContent = totalApprovals;
+
+            const elem = document.createElement('div');
+            elem.className = 'activity-item ' + (item.type === 'swarm_approval' ? 'swarm' : '');
+            elem.innerHTML = `
+                <div>
+                    <strong>${escapeHtml(item.action || 'Approved')}</strong> in <em>${escapeHtml(item.target || 'Agent')}</em>
+                </div>
+                <div class="activity-time">${new Date(item.timestamp || Date.now()).toLocaleTimeString()}</div>
+            `;
+            activityFeed.insertBefore(elem, activityFeed.firstChild);
+        }
+
+        window.removeBlockedCommand = function(cmd) {
+            const updated = currentState.blockedCommands.filter(c => c !== cmd);
+            vscode.postMessage({ command: 'updateBlockedCommands', commands: updated });
+        };
+
+        window.navigateAgent = function(index) {
+            const agent = (currentState.fleet || []).find(a => a.index === index);
+            if (agent) {
+                vscode.postMessage({ command: 'navigateAgent', agent });
+            }
+        };
+
+        function escapeHtml(str) {
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
